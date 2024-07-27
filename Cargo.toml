@@ -1,0 +1,10 @@
+[package]
+name = "rucker"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hex = "0.4.3"
+nix = { version = "0.29.0", features = ["fs", "hostname", "mount", "process", "sched", "signal", "socket"] }
+rand = "0.8.5"
+users = "0.11.0"
