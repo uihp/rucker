@@ -20,7 +20,7 @@ impl ChildProcess {
         ChildProcess { pid }
     }
     pub fn wait(&mut self) -> Result<(), ErrorType> {
-        println!("Waiting for child_proc (pid {}) to finish", self.pid);
+        log::debug!("Waiting for child_proc (pid {}) to finish", self.pid);
         waitpid(self.pid, None).map_err(ErrorType::WaitingError)?;
         Ok(())
     }
@@ -31,21 +31,21 @@ fn handle_internal(result: Result<isize, ErrorType>) -> isize {
         Ok(pid) => pid,
         Err(err_type) => {
             if let ErrorType::HostnameError(err) = err_type {
-                println!("Failed to set container hostname: {:?}", err);
+                log::error!("Failed to set container hostname: {:?}", err);
             } else if let ErrorType::DirectoryError(err) = err_type {
-                println!("DirectoryError: {:?}", err);
+                log::error!("DirectoryError: {:?}", err);
             } else if let ErrorType::ChDirError(err) = err_type {
-                println!("ChDirError: {:?}", err);
+                log::error!("ChDirError: {:?}", err);
             } else if let ErrorType::MountError(err) = err_type {
-                println!("MountError: {:?}", err);
+                log::error!("MountError: {:?}", err);
             } else if let ErrorType::UnmountError(err) = err_type {
-                println!("UnmountError: {:?}", err);
+                log::error!("UnmountError: {:?}", err);
             } else if let ErrorType::PivotRootError(err) = err_type {
-                println!("PivotRootError: {:?}", err);
+                log::error!("Failed to pivot root: {:?}", err);
             } else if let ErrorType::SocketCloseError(err) = err_type {
-                println!("Failed to close socket fd: {:?}", err);
+                log::error!("Failed to close socket fd: {:?}", err);
             } else if let ErrorType::ExecveError(err) = err_type {
-                println!("Failed to perform execve: {:?}", err);
+                log::error!("Failed to perform execve: {:?}", err);
             }
             -1
         }
@@ -57,7 +57,7 @@ impl Container {
         set_hostname(&self.hostname)?;
         set_mountpoint(&self.mount_dir, &self.addmntpts)?;
         close(self.socket_pair.1.as_raw_fd()).map_err(ErrorType::SocketCloseError)?;
-        println!("Starting container with <exec_command:{}>", self.exec_command.to_str().unwrap());
+        log::info!("Starting container with <exec_command:{}>", self.exec_command.to_str().unwrap());
         execve::<CString, CString>(&self.exec_command, &[], &[]).map_err(ErrorType::ExecveError)?;
         Ok(0)
     }
