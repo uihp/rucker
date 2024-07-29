@@ -3,11 +3,9 @@ use crate::container::Container;
 use crate::internal::{set_hostname, set_mountpoint};
 
 use std::ffi::CString;
-use std::os::fd::AsRawFd;
-use nix::unistd::{Pid, close, execve};
+use nix::unistd::{Pid, execve};
+use nix::sched::{clone, CloneFlags};
 use nix::sys::{signal::Signal, wait::waitpid};
-use nix::sched::clone;
-use nix::sched::CloneFlags;
 
 const STACK_SIZE: usize = 1024 * 1024;
 
@@ -44,8 +42,14 @@ fn handle_internal(result: Result<isize, ErrorType>) -> isize {
                 log::error!("Failed to pivot root: {:?}", err);
             } else if let ErrorType::SocketCloseError(err) = err_type {
                 log::error!("Failed to close socket fd: {:?}", err);
+            } else if let ErrorType::SocketSendError(err) = err_type {
+                log::error!("Failed to send via socket: {:?}", err);
+            } else if let ErrorType::SocketRecvError(err) = err_type {
+                log::error!("Failed to recv via socket: {:?}", err);
             } else if let ErrorType::ExecveError(err) = err_type {
                 log::error!("Failed to perform execve: {:?}", err);
+            } else if let ErrorType::UserSysError(err) = err_type {
+                log::error!("Failed to switch uid for child process: {:?}", err);
             }
             -1
         }
@@ -54,9 +58,9 @@ fn handle_internal(result: Result<isize, ErrorType>) -> isize {
 
 impl Container {
     fn child_process(&mut self) -> Result<isize, ErrorType> {
-        set_hostname(&self.hostname)?;
+        set_hostname(&self.id)?;
         set_mountpoint(&self.mount_dir, &self.addmntpts)?;
-        close(self.socket_pair.1.as_raw_fd()).map_err(ErrorType::SocketCloseError)?;
+        self.setup_user_namespace()?;
         log::info!("Starting container with <exec_command:{}>", self.exec_command.to_str().unwrap());
         execve::<CString, CString>(&self.exec_command, &[], &[]).map_err(ErrorType::ExecveError)?;
         Ok(0)

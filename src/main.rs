@@ -42,8 +42,8 @@ pub struct RunOptions {
     #[structopt(short, long="additional_mount_dirs")]
     pub addmntpts: Vec<String>,
     // User ID to create inside the container
-    #[structopt(short, long)]
-    pub uid: Option<u32>
+    #[structopt(short, long, default_value="0")]
+    pub uid: u32
 }
 
 fn main() {
@@ -58,7 +58,7 @@ fn main() {
     }
     match args.command {
         Command::Run(opt) => {
-            match run(opt.exec_command, opt.mount_dir, opt.addmntpts) {
+            match run(opt.exec_command, opt.mount_dir, opt.addmntpts, opt.uid) {
                 Ok(()) => log::info!("All done"),
                 Err(err_type) => {
                     if let ErrorType::CStringError(err) = err_type {
@@ -69,6 +69,12 @@ fn main() {
                         log::error!("Failed to setup child process: {:?}", err);
                     } else if let ErrorType::WaitingError(err) = err_type {
                         log::error!("Error while waiting for child process to finish: {:?}", err);
+                    } else if let ErrorType::FileError(err) = err_type {
+                        log::error!("Error while mapping UID/GID for child process: {:?}", err);
+                    } else if let ErrorType::SocketSendError(err) = err_type {
+                        log::error!("Error while communicating with child process: Failed to send via socket: {:?}", err);
+                    } else if let ErrorType::SocketRecvError(err) = err_type {
+                        log::error!("Error while communicating with child process: Failed to recv via socket: {:?}", err);
                     }
                 }
             };

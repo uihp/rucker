@@ -13,5 +13,7 @@ pub enum ErrorType {
     UnmountError(nix::errno::Errno),
     PivotRootError(nix::errno::Errno),
     ChDirError(nix::errno::Errno),
-    DirectoryError(std::io::Error)
+    DirectoryError(std::io::Error),
+    FileError(std::io::Error),
+    UserSysError(nix::errno::Errno)
 }
