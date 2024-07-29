@@ -4,7 +4,7 @@
 `cargo build`
 
 ## Run
-`rucker run rucker run --exec-command <exec-command> --mount-dir <mount-dir> [--uid <uid>]`
+`rucker run -m <mount-dir> -c <exec-command> [--uid <uid>]`
 
 ## References
 
