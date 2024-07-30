@@ -1,11 +1,12 @@
 use crate::errors::ErrorType;
 use crate::container::Container;
-use crate::internal::{set_hostname, set_mountpoint};
+use crate::internal::{set_hostname, set_mountpoint, drop_capabilities, restrict_syscalls};
 
-use std::ffi::CString;
 use nix::unistd::{Pid, execve};
 use nix::sched::{clone, CloneFlags};
 use nix::sys::{signal::Signal, wait::waitpid};
+
+use std::ffi::CString;
 
 const STACK_SIZE: usize = 1024 * 1024;
 
@@ -50,6 +51,10 @@ fn handle_internal(result: Result<isize, ErrorType>) -> isize {
                 log::error!("Failed to perform execve: {:?}", err);
             } else if let ErrorType::UserSysError(err) = err_type {
                 log::error!("Failed to switch uid for child process: {:?}", err);
+            } else if let ErrorType::CapabilityError(err) = err_type {
+                log::error!("Failed to restrict capabilities of child process: {:?}", err);
+            } else if let ErrorType::SyscallError(err) = err_type {
+                log::error!("Failed to restrict syscalls for child process: {:?}", err);
             }
             -1
         }
@@ -61,6 +66,8 @@ impl Container {
         set_hostname(&self.id)?;
         set_mountpoint(&self.mount_dir, &self.addmntpts)?;
         self.setup_user_namespace()?;
+        drop_capabilities()?;
+        restrict_syscalls()?;
         log::info!("Starting container with <exec_command:{}>", self.exec_command.to_str().unwrap());
         execve::<CString, CString>(&self.exec_command, &[], &[]).map_err(ErrorType::ExecveError)?;
         Ok(0)

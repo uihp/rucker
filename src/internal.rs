@@ -1,10 +1,17 @@
 use crate::errors::ErrorType;
 use crate::utils::random_hex_string;
+use crate::capabilities::CAPABILITIES_DROP;
+use crate::syscalls::{SYSCALLS_REFUSED, SYSCALLS_CONDITIONALLY_REFUSED};
+
+use nix::unistd::{sethostname, pivot_root, chdir};
+use nix::mount::{mount, MsFlags, umount2, MntFlags};
+use capctl::caps::FullCapState;
+use syscallz::{Context, Action, Syscall, Comparator, Cmp};
 
 use std::path::PathBuf;
 use std::fs::{create_dir_all, remove_dir};
-use nix::unistd::{sethostname, pivot_root, chdir};
-use nix::mount::{mount, MsFlags, umount2, MntFlags};
+
+const EPERM: u16 = 1;
 
 pub fn set_hostname(hostname: &String) -> Result<(), ErrorType> {
     sethostname(hostname).map_err(ErrorType::HostnameError)?;
@@ -44,5 +51,33 @@ pub fn set_mountpoint(mount_dir: &PathBuf, addmntpts: &Vec<(PathBuf, PathBuf)>) 
     umount2(&old_root, MntFlags::MNT_DETACH).map_err(ErrorType::UnmountError)?;
     remove_dir(&old_root.as_path()).map_err(ErrorType::DirectoryError)?;
 
+    Ok(())
+}
+
+pub fn drop_capabilities() -> Result<(), ErrorType> {
+    let mut caps = FullCapState::get_current().map_err(ErrorType::CapabilityError)?;
+    caps.bounding.drop_all(CAPABILITIES_DROP.iter().map(|&cap| cap));
+    caps.inheritable.drop_all(CAPABILITIES_DROP.iter().map(|&cap| cap));
+    log::info!("Successfully dropped unwanted capabilities");
+    Ok(())
+}
+
+fn refuse_syscall(ctx: &mut Context, syscall: &Syscall) -> Result<(), ErrorType> {
+    ctx.set_action_for_syscall(Action::Errno(EPERM), *syscall).map_err(ErrorType::SyscallError)
+}
+
+fn refuse_conditionally(ctx: &mut Context, syscall: &Syscall, ind: u32, biteq: u64)-> Result<(), ErrorType> {
+    ctx.set_rule_for_syscall(Action::Errno(EPERM), *syscall,
+        &[Comparator::new(ind, Cmp::MaskedEq, biteq, Some(biteq))]).map_err(ErrorType::SyscallError)
+}
+
+pub fn restrict_syscalls() -> Result<(), ErrorType> {
+    let mut ctx = Context::init_with_action(Action::Allow).map_err(ErrorType::SyscallError)?;
+    for syscall in SYSCALLS_REFUSED.iter() { refuse_syscall(&mut ctx, syscall)?; }
+    for (syscall, ind, biteq) in SYSCALLS_CONDITIONALLY_REFUSED.iter() {
+        refuse_conditionally(&mut ctx, syscall, *ind, *biteq)?;
+    }
+    ctx.load().map_err(ErrorType::SyscallError)?;
+    log::info!("Refused and filtered unwanted syscalls");
     Ok(())
 }

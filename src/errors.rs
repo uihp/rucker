@@ -15,5 +15,9 @@ pub enum ErrorType {
     ChDirError(nix::errno::Errno),
     DirectoryError(std::io::Error),
     FileError(std::io::Error),
-    UserSysError(nix::errno::Errno)
+    UserSysError(nix::errno::Errno),
+    CapabilityError(std::io::Error),
+    SyscallError(syscallz::Error),
+    CgroupError(cgroups_rs::error::Error),
+    RlimitError(std::io::Error)
 }

@@ -3,8 +3,10 @@ use crate::utils::random_hex_string;
 use crate::ipc::{create_socketpair, send_boolean, recv_boolean};
 use crate::childproc::ChildProcess;
 
+use nix::unistd::close;
+
 use std::ffi::CString;
-use std::os::fd::OwnedFd;
+use std::os::fd::{AsRawFd, OwnedFd};
 use std::path::PathBuf;
 
 pub struct Container {
@@ -27,6 +29,8 @@ impl Container {
         let child_process = self.create_child_process()?;
         log::info!("Successfully created child process: {:?}", child_process.pid);
         self.child_proc = Some(child_process);
+        self.restrict_resources()?;
+        log::info!("Successfully restricted resources");
         if recv_boolean(&self.socket_pair.0)? {
             self.map_child_uid()?;
             send_boolean(&self.socket_pair.0, true)?;
@@ -38,7 +42,12 @@ impl Container {
         Ok(())
     }
     pub fn destroy(&mut self) {
-        log::info!("Finished, cleaning & exit");
+        log::info!("cleaning & exit");
+        if let Err(err) = close(self.socket_pair.0.as_raw_fd()) { log::error!("Failed to close child socket when destroying: {:?}", err); }
+        else { log::debug!("Child socket cleaned") }
+        if let Err(err) = close(self.socket_pair.1.as_raw_fd()) { log::error!("Failed to close parent socket when destroying: {:?}", err); }
+        else { log::debug!("Parent socket cleaned") }
+        if let Err(err) = self.clean_cgroup() { log::error!("Failed to clean cgroup when destroying: {:?}", err); }
     }
 }
 

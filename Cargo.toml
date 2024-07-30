@@ -4,10 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+capctl = "0.2.4"
+cgroups-rs = "0.3.4"
 env_logger = "0.11.5"
 hex = "0.4.3"
+libc = "0.2.155"
 log = "0.4.22"
 nix = { version = "0.29.0", features = ["fs", "hostname", "mount", "process", "sched", "signal", "socket", "user"] }
 rand = "0.8.5"
+rlimit = "0.10.1"
 structopt = "0.3.26"
+syscallz = "0.17.0"
 users = "0.11.0"

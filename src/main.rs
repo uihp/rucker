@@ -1,10 +1,11 @@
 use container::run;
 use errors::ErrorType;
 
-use std::process;
-use users::get_current_uid;
-use std::path::PathBuf;
 use structopt::StructOpt;
+use users::get_current_uid;
+
+use std::process;
+use std::path::PathBuf;
 
 mod utils;
 mod errors;
@@ -13,6 +14,9 @@ mod childproc;
 mod internal;
 mod ipc;
 mod namespace;
+mod capabilities;
+mod syscalls;
+mod cgroup;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "rucker", about = "Linux container written in Rust")]
@@ -75,6 +79,10 @@ fn main() {
                         log::error!("Error while communicating with child process: Failed to send via socket: {:?}", err);
                     } else if let ErrorType::SocketRecvError(err) = err_type {
                         log::error!("Error while communicating with child process: Failed to recv via socket: {:?}", err);
+                    } else if let ErrorType::CgroupError(err) = err_type {
+                        log::error!("Failed to restrict resourses for child process: {:?}", err);
+                    } else if let ErrorType::RlimitError(err) = err_type {
+                        log::error!("Failed to limit resources for child process: {:?}", err);
                     }
                 }
             };
